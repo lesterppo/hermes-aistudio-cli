@@ -118,6 +118,25 @@ Key findings:
   files and token counting. Image (`limit: 0`) and Veo are not available on this free tier;
   the CLI reports that honestly instead of failing silently.
 
+## Free-tier model reliability (measured)
+
+`tests/reltest.py` — 4 calls per model, identical prompt, one session:
+
+| model | success | avg latency | failure mode |
+|---|---|---|---|
+| `gemini-flash-lite-latest` | 4/4 | 1.62 s | – |
+| `gemini-3.5-flash` **(default)** | 4/4 | 1.96 s | – |
+| `gemini-3.1-flash-lite` | 4/4 | 3.25 s | – |
+| `gemini-3.8-flash` | 3/4 | 24.14 s | 1x `NETWORK` — too slow for a default |
+| `gemini-3.6-flash` | 1/4 | 2.88 s | 3x `NETWORK` — connection drops |
+| `gemini-2.5-flash` | 0/4 | – | 4x `RATE_LIMIT` — daily quota exhausted |
+
+Fallback chain: `gemini-flash-lite-latest → gemini-3.1-flash-lite → gemini-2.5-flash`.
+Transient `503 high demand` and dropped connections are routine on the free tier, so the
+CLI retries with backoff and then walks that chain, reporting `"fb":true` in the pointer
+when a fallback answered. Never loop-retry a failing model yourself — re-run
+`tests/reltest.py` before changing the default, behaviour shifts.
+
 ## Coverage vs. the Gemini web CLI
 
 `ais` covers the Gemini web CLI's feature set on the AI Studio surface, plus extras:
