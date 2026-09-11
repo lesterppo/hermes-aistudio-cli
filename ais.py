@@ -497,8 +497,11 @@ class Api:
 FALLBACK_CHAIN = ["gemini-flash-lite-latest", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
 
 
-def gen_retry(api, model, body, a, tries=3):
-    """Generate with backoff on transient errors and an optional model fallback.
+def gen_retry(api, model, body, a, tries=2):
+    """Generate with backoff on transient errors and a model-fallback chain.
+
+    A thinking config the model family rejects is dropped and the same model is
+    retried (e.g. --think off against a non-thinking model).
 
     Returns (resp, model_used, fell_back). Raises AisError when everything fails.
     """
@@ -512,12 +515,16 @@ def gen_retry(api, model, body, a, tries=3):
                 return api.gen(m, body, timeout=getattr(a, "timeout", 180)), m, mi > 0
             except AisError as e:
                 last = e
+                gc = body.get("generationConfig")
+                if e.err == "BAD_REQUEST" and gc and "thinkingConfig" in gc:
+                    gc.pop("thinkingConfig", None)      # model rejects our thinking setting
+                    if not gc:
+                        body.pop("generationConfig", None)
+                    continue                            # same model, without it
                 if not e.retry:
                     raise
                 if attempt < tries - 1:
-                    time.sleep(2 + 2 * attempt)
-        if mi == 0 and len(chain) > 1 and getattr(a, "brief_quiet", False) is False and not a.raw:
-            sys.stderr.write(f"[ais] {m} unavailable ({last.err}); falling back\n")
+                    time.sleep(1.5)          # fail fast, then walk the fallback chain
     raise last
 
 
@@ -604,8 +611,8 @@ def gen_config(a):
             cfg["thinkingConfig"] = {"thinkingBudget": int(th)}
         elif legacy and th.lower() in lvl:
             cfg["thinkingConfig"] = {"thinkingBudget": lvl[th.lower()]}
-        elif th.lower() == "off":
-            cfg["thinkingConfig"] = {"thinkingBudget": 0}
+        elif th.lower() in ("off", "none") and not legacy:
+            pass          # 3.x cannot disable thinking; leave the model default
         else:
             cfg["thinkingConfig"] = {"thinkingLevel": th.upper()}
     return cfg
@@ -949,27 +956,41 @@ def cmd_chat(a):
     if a.stream:
         last = None
         body = body_from(a, history, prompt, model)
-        deltas, used, fb = [], model, False
+        used, fb = model, False
         chain = [model] + ([m for m in FALLBACK_CHAIN if m != model] if getattr(a, "fallback", True) else [])
+        acc = ""
+        done = False
         for mi, m in enumerate(chain):
-            acc = ""
-            try:
-                for chunk in api.stream(m, body, timeout=a.timeout):
-                    last = chunk
-                    t, _ = extract_text(chunk)
-                    if t:
-                        add = t[len(acc):] if t.startswith(acc) else t
-                        if not a.raw:
-                            sys.stderr.write(add)
-                            sys.stderr.flush()
-                        acc += add
-                used, fb = m, mi > 0
+            for attempt in range(2):          # 2nd attempt = same model minus thinkingConfig
+                acc = ""
+                try:
+                    for chunk in api.stream(m, body, timeout=a.timeout):
+                        last = chunk
+                        t, _ = extract_text(chunk)
+                        if t:
+                            add = t[len(acc):] if t.startswith(acc) else t
+                            if not a.raw:
+                                sys.stderr.write(add)
+                                sys.stderr.flush()
+                            acc += add
+                    used, fb, done = m, mi > 0, True
+                    break
+                except AisError as e:
+                    gc = body.get("generationConfig")
+                    if e.err == "BAD_REQUEST" and gc and "thinkingConfig" in gc:
+                        gc.pop("thinkingConfig", None)
+                        if not gc:
+                            body.pop("generationConfig", None)
+                        continue                  # retry the same model without thinking
+                    if not e.retry or mi == len(chain) - 1:
+                        raise
+                    if not a.raw:
+                        sys.stderr.write(f"\n[ais] {m} failed ({e.err}); retrying with fallback\n")
+                    break                         # move to the next model
+            if done:
                 break
-            except AisError as e:
-                if not e.retry or mi == len(chain) - 1:
-                    raise
-                if not a.raw:
-                    sys.stderr.write(f"\n[ais] {m} failed ({e.err}); retrying with fallback\n")
+        if not done:
+            raise AisError("STREAM_FAILED", "no model in the fallback chain streamed successfully")
         if not a.raw:
             sys.stderr.write("\n")
         final = acc.strip()

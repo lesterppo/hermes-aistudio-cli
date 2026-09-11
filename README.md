@@ -118,6 +118,30 @@ Key findings:
   files and token counting. Image (`limit: 0`) and Veo are not available on this free tier;
   the CLI reports that honestly instead of failing silently.
 
+## Coverage vs. the Gemini web CLI
+
+`ais` covers the Gemini web CLI's feature set on the AI Studio surface, plus extras:
+
+| Gemini web CLI | `ais` | status |
+|---|---|---|
+| single-turn chat | `ais chat -p` | works |
+| multi-turn (`-c`) | `ais chat -c <name>` | works |
+| streaming (`--stream`) | `ais chat --stream` | works |
+| model list | `ais models` / `ais models --backend api` | works |
+| file upload (`-f`) | `ais chat -f` / `ais files upload` | works |
+| image upload (`-i`) | `ais chat -i` | works |
+| deep research (`--deep-research`) | `ais research --wait` | works (Interactions API) |
+| code extraction (`--extract-code`) | `ais chat --code` | works |
+| save images (`--save-images`) | `ais chat --save-images` | works |
+| account status | `ais account` | works |
+| `--brief` / `--raw` / `-t` | same flags | works |
+| image generation (`--img`) | `ais image` | free tier blocks it (`limit: 0`) |
+| Gem CRUD | AI Studio prompts/agents via `ais call` | free tier needs OAuth bearer |
+| server-side chat history | local sessions only | AI Studio does not expose it over RPC |
+
+Beyond the web CLI: `ais quota`, `ais promos`, `ais projects`, `ais tokens`, `ais embed`,
+`ais tts`, `ais cache`, `ais files`, `ais video`, and `ais call <Method>` (~100 RPC methods).
+
 ## Files
 
 ```

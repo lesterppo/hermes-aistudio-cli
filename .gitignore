@@ -13,3 +13,4 @@ out/
 sessions/
 map/
 *.log
+tests/last_run.txt

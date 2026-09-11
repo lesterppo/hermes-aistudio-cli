@@ -154,6 +154,13 @@ def main():
     d, _, _ = run(["files", "upload", p])
     check("files upload", d.get("ok") and d.get("uri"), f"{d.get('name')}")
 
+    d, _, _ = run(["research", "What is 2+2?"], timeout=120)
+    check("deep research submit", d.get("ok") and d.get("id") and d.get("status"),
+          f"id={(d.get('id') or '')[:24]} status={d.get('status')}")
+    if d.get("id") and not QUICK:
+        d2, _, _ = run(["research", "--status", d["id"], "--json"], timeout=120)
+        check("deep research poll", d2.get("ok") and d2.get("status"), f"status={d2.get('status')}")
+
     d, _, _ = run(["tts", "Short test."])
     ok_tts = d.get("ok") and d.get("bytes", 0) > 1000
     if ok_tts:
