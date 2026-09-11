@@ -93,7 +93,11 @@ def main():
 
     d, dt, _ = run(["chat", "-p", "Count from 1 to 4", "--stream", "--raw"])
     check("chat streaming", d.get("ok") and readptr(d).strip(), f"{dt:.1f}s out={readptr(d)[:40]!r}")
-    check("stream is fast", dt < 20, f"{dt:.1f}s (1-byte-read regression guard)")
+    # The 1-byte-read regression made a tiny reply take ~24s. Guard against it, but
+    # allow the fallback path its retry + chain latency under free-tier rate pressure.
+    budget = 45 if d.get("fb") else 12
+    check("stream is fast", dt < budget,
+          f"{dt:.1f}s (budget {budget}s, fb={bool(d.get('fb'))}) — 1-byte-read regression guard")
 
     run(["chat", "-c", "livetest", "--new", "-p", "My access code is ORCA-4417. Reply OK."])
     d, _, _ = run(["chat", "-c", "livetest", "-p", "What is my access code? Answer with just the code."])
