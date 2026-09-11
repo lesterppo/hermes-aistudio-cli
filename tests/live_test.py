@@ -11,9 +11,13 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 
 AIS = os.environ.get("AIS_BIN", "ais")
+# Fixtures go in a per-run temp dir under the CLI's own state root, never bare /tmp:
+# /tmp files have been observed to vanish mid-session, which fails these checks spuriously.
+FIXTURES = tempfile.mkdtemp(prefix="ais-test-", dir=os.path.expanduser("~/.aistudio-cli"))
 QUICK = "--quick" in sys.argv
 
 PASS, FAIL, SKIP = [], [], []
@@ -123,12 +127,12 @@ def main():
     check("think off", d.get("ok") and (d.get("u") or {}).get("think") in (None, 0), f"think={(d.get('u') or {}).get('think')}")
 
     print("== attachments ==")
-    p = "/tmp/ais_test_secret.txt"
+    p = os.path.join(FIXTURES, "secret.txt")
     open(p, "w").write("The vault code is ZEBRA-7731.\n")
     d, _, _ = run(["chat", "-f", p, "-p", "What is the vault code? Answer with the code only."])
     check("file attach (upload+ground)", d.get("ok") and "ZEBRA-7731" in readptr(d), f"out={readptr(d)[:40]!r}")
 
-    img = "/tmp/ais_test_shapes.png"
+    img = os.path.join(FIXTURES, "shapes.png")
     try:
         from PIL import Image, ImageDraw
         im = Image.new("RGB", (220, 120), "white")
@@ -181,7 +185,7 @@ def main():
           f"{d.get('err')}")
     check("errors are json not traceback", "Traceback" not in (p.stdout + p.stderr))
 
-    d, _, p = run(["chat", "-f", "/tmp/definitely_missing.txt", "-p", "hi"])
+    d, _, p = run(["chat", "-f", os.path.join(FIXTURES, "definitely_missing.txt"), "-p", "hi"])
     check("missing file -> BAD_FILE", d.get("ok") is False and d.get("err") == "BAD_FILE", f"{d.get('err')}")
 
     d, _, _ = run(["chat"])
