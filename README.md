@@ -1,5 +1,11 @@
 # ais — Google AI Studio CLI (agent-native, zero cost)
 
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Dependencies](https://img.shields.io/badge/dependencies-none%20(stdlib)-brightgreen.svg)](#install)
+[![Cost](https://img.shields.io/badge/cost-free%20tier-blueviolet.svg)](#coverage-vs-the-gemini-web-cli)
+[![Agent-native](https://img.shields.io/badge/output-JSON%20pointer-orange.svg)](#output-contract)
+
 Token-efficient CLI that operates **Google AI Studio** from the terminal with **no paid API**.
 Two backends, both free:
 
